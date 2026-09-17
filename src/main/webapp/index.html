@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FoodScan AI — Multimodal Food & Nutrient Vision Scanner</title>
+  <meta name="description" content="Upload any food image to get full nutrient values, health score, and personalized health warnings powered by Gemini AI and Java design patterns."/>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+
+<header>
+  <div class="brand-wrapper">
+    <div class="logo-badge">🥗</div>
+    <div class="brand-text">
+      <h1>FoodScan Vision AI</h1>
+      <p>Upload a food image for instant nutrient breakdown & dietary warnings</p>
+    </div>
+  </div>
+
+  <div class="header-patterns">
+    <span class="pattern-pill">Singleton: DB Connection</span>
+    <span class="pattern-pill">Factory Method: Analyzers</span>
+    <span class="pattern-pill">Abstract Factory: Services</span>
+    <span class="pattern-pill">Proxy: Multimodal Cache</span>
+    <span class="pattern-pill">Bridge: JSON Normalizer</span>
+    <span class="pattern-pill">Observer: DB History</span>
+    <span class="pattern-pill">Chain of Resp.: Health Risk</span>
+  </div>
+</header>
+
+<main>
+
+  <!-- Image Upload Scanner Card -->
+  <section class="glass-card" aria-label="Upload Food Image Section">
+    <div class="card-header">
+      <h2 class="card-title">📷 Upload Food Image to Scan</h2>
+      <span style="font-size:0.8rem; color:var(--text-muted);">Supports JPG, PNG, WEBP, HEIC</span>
+    </div>
+
+    <!-- Hidden native file input -->
+    <input
+      type="file"
+      id="foodFileInput"
+      accept="image/*"
+      style="display: none;"
+      onchange="handleFileSelected(event)"
+    />
+
+    <!-- Drag and drop zone -->
+    <div
+      class="upload-dropzone"
+      id="dropZone"
+      onclick="document.getElementById('foodFileInput').click()"
+      ondragover="handleDragOver(event)"
+      ondragleave="handleDragLeave(event)"
+      ondrop="handleDrop(event)"
+    >
+      <div class="dropzone-icon">📸</div>
+      <div class="dropzone-prompt">
+        <h3>Drag & Drop Food Photo Here</h3>
+        <p>or click to browse from your computer / phone camera</p>
+      </div>
+
+      <div class="upload-btn-group" onclick="event.stopPropagation()">
+        <button
+          type="button"
+          class="btn-secondary"
+          onclick="document.getElementById('foodFileInput').click()"
+        >
+          📂 Browse Photo
+        </button>
+        <button
+          type="button"
+          class="btn-secondary"
+          onclick="openCamera()"
+        >
+          🤳 Take Photo
+        </button>
+      </div>
+    </div>
+
+    <!-- Live Preview Card -->
+    <div class="preview-card" id="previewCard">
+      <img id="previewImg" class="preview-thumb" alt="Food preview" />
+      <div class="preview-details">
+        <div class="preview-filename" id="previewFilename">food-photo.jpg</div>
+        <div class="preview-meta" id="previewMeta">JPEG · 1.2 MB</div>
+        <input
+          type="text"
+          id="userContextNote"
+          class="preview-note-input"
+          placeholder="Optional: Add a note (e.g., 'Homemade curry' or 'Restaurant meal')"
+        />
+      </div>
+      <button
+        type="button"
+        class="btn-secondary"
+        style="padding:8px 14px; font-size:0.8rem;"
+        onclick="clearSelectedImage()"
+      >
+        ✕ Remove
+      </button>
+    </div>
+
+    <!-- Scan Button -->
+    <button
+      id="scanBtn"
+      class="btn-scan"
+      onclick="performScan()"
+      disabled
+    >
+      <div class="scan-spinner" id="scanSpinner"></div>
+      <span id="scanBtnIcon">⚡</span>
+      <span id="scanBtnText">Upload Image to Scan</span>
+    </button>
+
+    <div id="statusMsg" class="status-msg"></div>
+  </section>
+
+  <!-- Two-Column Results Display -->
+  <div class="results-grid" id="resultsGrid">
+
+    <!-- Column 1: Nutrient Values & General Details -->
+    <section class="glass-card" aria-label="Nutrient Values">
+      <div class="card-header">
+        <div>
+          <h2 class="card-title" id="foodTitle">Identified Food</h2>
+          <div style="font-size:0.82rem; color:var(--text-muted); margin-top:2px;" id="foodSub">Serving Size: —</div>
+        </div>
+        <span class="pattern-pill" id="foodCategoryBadge" style="background:rgba(110,90,255,0.15); border-color:rgba(110,90,255,0.3); color:#c7d2fe;">Category</span>
+      </div>
+
+      <div class="nutrient-grid" id="nutrientGrid">
+        <!-- Dynamically populated nutrient chips -->
+      </div>
+
+      <div class="recommendation-banner" id="recommendationBanner">
+        <strong style="color:#34d399;">🥗 Nutritionist Verdict:</strong>
+        <p id="recommendationText" style="margin-top:6px; color:#f1f5f9;">Loading recommendation...</p>
+      </div>
+
+      <div style="margin-top:24px;">
+        <h4 style="font-size:0.92rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em;">✨ Key Health Benefits</h4>
+        <div class="benefits-container" id="benefitsContainer">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+    </section>
+
+    <!-- Column 2: Health Analysis & Conditions (Chain of Responsibility) -->
+    <section class="glass-card" aria-label="Health Condition Analysis">
+      <div class="card-header">
+        <h2 class="card-title">🩺 Health & Dietary Risk Assessment</h2>
+        <span style="font-size:0.75rem; color:#94a3b8;">Chain of Responsibility Pipeline</span>
+      </div>
+
+      <!-- Health Score Gauge -->
+      <div class="score-section">
+        <div class="score-gauge">
+          <svg width="100" height="100" viewBox="0 0 100 100">
+            <circle class="gauge-bg" cx="50" cy="50" r="45"/>
+            <circle class="gauge-fill" id="gaugeFill" cx="50" cy="50" r="45"/>
+          </svg>
+          <div class="gauge-val">
+            <span id="scoreVal">—</span>
+            <span>Score</span>
+          </div>
+        </div>
+        <div class="verdict-info">
+          <h4 id="verdictTitle">Health Index</h4>
+          <p id="verdictDesc">Evaluated based on micro and macro nutrients profile</p>
+        </div>
+      </div>
+
+      <!-- Condition Warnings from Chain of Responsibility -->
+      <div id="conditionWarnings">
+        <!-- Diabetes Warning Box (Prominent) -->
+        <div class="warning-box diabetes-alert" id="diabetesWarningBox">
+          <div class="warning-icon">🩺</div>
+          <div>
+            <strong style="display:block; margin-bottom:2px;">Diabetes / Sugar Assessment</strong>
+            <span id="diabetesWarningText">Scanning...</span>
+          </div>
+        </div>
+
+        <!-- Hypertension Warning Box -->
+        <div class="warning-box hypertension-box" id="hypertensionWarningBox">
+          <div class="warning-icon">❤️</div>
+          <div>
+            <strong style="display:block; margin-bottom:2px;">Hypertension & Sodium Assessment</strong>
+            <span id="hypertensionWarningText">Scanning...</span>
+          </div>
+        </div>
+
+        <!-- Obesity / Calorie Warning Box -->
+        <div class="warning-box general-box" id="obesityWarningBox">
+          <div class="warning-icon">⚖️</div>
+          <div>
+            <strong style="display:block; margin-bottom:2px;">Calorie & Weight Management</strong>
+            <span id="obesityWarningText">Scanning...</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Pattern execution details -->
+      <div style="margin-top:20px; padding:12px 16px; background:rgba(255,255,255,0.02); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:0.78rem; color:var(--text-muted);">
+        <strong style="color:#e2e8f0;">⚙️ Design Pattern Trace:</strong>
+        <div id="patternTrace" style="margin-top:4px; font-family:monospace; line-height:1.5;">
+          All patterns executed cleanly.
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Database Scan History (Observer + Singleton JDBC) -->
+  <section class="glass-card" aria-label="Scan History Database">
+    <div class="card-header">
+      <h2 class="card-title">📋 Recent Scan History</h2>
+      <button
+        class="btn-secondary"
+        style="padding:6px 14px; font-size:0.8rem;"
+        onclick="loadHistory()"
+      >
+        ↻ Refresh History
+      </button>
+    </div>
+    <div class="history-table-wrapper">
+      <div id="historyContent">
+        <div style="text-align:center; padding:30px; color:var(--text-muted);">Loading database scan history...</div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div>FoodScan Vision AI — Powered by Google Gemini &amp; Java Design Patterns</div>
+  <div class="pattern-footer-list">
+    <span class="pattern-pill">1. Singleton: Thread-safe SQLite Connection Pool</span>
+    <span class="pattern-pill">2. Factory Method: ImageFoodAnalyzer &amp; Category Analyzers</span>
+    <span class="pattern-pill">3. Abstract Factory: ScannerServiceFactory</span>
+    <span class="pattern-pill">4. Proxy: GeminiApiProxy with Smart Multimodal Caching</span>
+    <span class="pattern-pill">5. Bridge: FoodReportFormatter with JsonRenderer</span>
+    <span class="pattern-pill">6. Observer: ScanEventManager notifying ScanHistoryDAO</span>
+    <span class="pattern-pill">7. Chain of Responsibility: Diabetes → Hypertension → Obesity → General</span>
+  </div>
+</footer>
+
+<script>
+  let selectedFile = null;
+  let base64Data = null;
+  let fileMime = 'image/jpeg';
+
+  // Open Camera using device capture
+  function openCamera() {
+    const input = document.getElementById('foodFileInput');
+    input.setAttribute('capture', 'environment');
+    input.click();
+  }
+
+  // Handle Drag and Drop
+  function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    document.getElementById('dropZone').classList.add('dragover');
+  }
+
+  function handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    document.getElementById('dropZone').classList.remove('dragover');
+  }
+
+  function handleDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    document.getElementById('dropZone').classList.remove('dragover');
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFile(e.dataTransfer.files[0]);
+    }
+  }
+
+  function handleFileSelected(e) {
+    if (e.target.files && e.target.files.length > 0) {
+      processFile(e.target.files[0]);
+    }
+  }
+
+  function processFile(file) {
+    if (!file.type.startsWith('image/')) {
+      showStatus('Please upload a valid image file (JPG, PNG, WEBP, etc.).', 'error');
+      return;
+    }
+
+    selectedFile = file;
+    fileMime = file.type || 'image/jpeg';
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      base64Data = e.target.result;
+      document.getElementById('previewImg').src = base64Data;
+      document.getElementById('previewFilename').textContent = file.name;
+      document.getElementById('previewMeta').textContent =
+        `${file.type.toUpperCase().replace('IMAGE/', '')} · ${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+
+      document.getElementById('previewCard').style.display = 'flex';
+      document.getElementById('dropZone').style.display = 'none';
+
+      const scanBtn = document.getElementById('scanBtn');
+      scanBtn.disabled = false;
+      document.getElementById('scanBtnText').textContent = 'Scan & Analyze This Food Image';
+      clearStatus();
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function clearSelectedImage() {
+    selectedFile = null;
+    base64Data = null;
+    document.getElementById('foodFileInput').value = '';
+    document.getElementById('previewCard').style.display = 'none';
+    document.getElementById('dropZone').style.display = 'block';
+
+    const scanBtn = document.getElementById('scanBtn');
+    scanBtn.disabled = true;
+    document.getElementById('scanBtnText').textContent = 'Upload Image to Scan';
+    clearStatus();
+  }
+
+  async function performScan() {
+    if (!base64Data) {
+      showStatus('Please select or upload a food image first.', 'error');
+      return;
+    }
+
+    setLoading(true);
+    showStatus('Analyzing image with Gemini Vision AI and running Health Check Chain...', 'success');
+
+    const note = document.getElementById('userContextNote').value.trim();
+
+    try {
+      const response = await fetch('scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image: base64Data,
+          mimeType: fileMime,
+          note: note
+        })
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || result.error) {
+        showStatus('Error: ' + (result.error || 'Failed to scan food image'), 'error');
+        return;
+      }
+
+      displayScanResults(result);
+      showStatus('✅ Food successfully identified and analyzed! Saved to SQLite database.', 'success');
+      loadHistory();
+
+      // Smooth scroll to results
+      document.getElementById('resultsGrid').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    } catch (err) {
+      showStatus('Network or Server Error: ' + err.message, 'error');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function displayScanResults(res) {
+    const data = res.data || {};
+    const nutrients = data.nutrients || {};
+    const warnings = res.health_warnings || [];
+    const benefits = data.health_benefits || [];
+    const score = Number(data.health_score) || 7;
+    const foodName = res.detected_food || data.food_name || 'Identified Food Item';
+    const category = res.category || data.category || 'Food';
+    const serving = data.serving_size || '100g standard serving';
+    const recommendation = data.recommendation || 'Balanced dietary choice.';
+
+    // Header info
+    document.getElementById('foodTitle').textContent = foodName;
+    document.getElementById('foodSub').textContent = `Serving Size: ${serving}`;
+    document.getElementById('foodCategoryBadge').textContent = category;
+
+    // Nutrient grid
+    const nutrientKeys = [
+      { key: 'calories', label: 'Calories', highlight: false },
+      { key: 'protein', label: 'Protein', highlight: false },
+      { key: 'carbohydrates', label: 'Carbs', highlight: false },
+      { key: 'sugar', label: 'Sugar', highlight: true },
+      { key: 'fat', label: 'Total Fat', highlight: false },
+      { key: 'fiber', label: 'Fiber', highlight: false },
+      { key: 'sodium', label: 'Sodium', highlight: false },
+      { key: 'potassium', label: 'Potassium', highlight: false },
+      { key: 'calcium', label: 'Calcium', highlight: false },
+      { key: 'iron', label: 'Iron', highlight: false },
+      { key: 'vitamin_c', label: 'Vitamin C', highlight: false }
+    ];
+
+    let chipsHtml = '';
+    nutrientKeys.forEach(n => {
+      const val = nutrients[n.key];
+      if (val !== undefined && val !== null && String(val).trim() !== '') {
+        const isSugarAlert = n.highlight && (parseFloat(val) >= 12 || String(val).toLowerCase().includes('high'));
+        chipsHtml += `
+          <div class="metric-chip ${isSugarAlert ? 'highlight-sugar' : ''}">
+            <div class="metric-name">${n.label}</div>
+            <div class="metric-value">${escapeHtml(String(val))}</div>
+          </div>`;
+      }
+    });
+
+    document.getElementById('nutrientGrid').innerHTML = chipsHtml ||
+      '<div style="grid-column:1/-1; text-align:center; color:var(--text-muted); padding:20px;">Nutrient details estimated by AI.</div>';
+
+    // Recommendation
+    document.getElementById('recommendationText').textContent = recommendation;
+
+    // Benefits
+    const benefitsContainer = document.getElementById('benefitsContainer');
+    if (benefits && benefits.length > 0) {
+      benefitsContainer.innerHTML = benefits.map(b =>
+        `<span class="benefit-badge">✔ ${escapeHtml(b)}</span>`
+      ).join('');
+    } else {
+      benefitsContainer.innerHTML = '<span class="benefit-badge">✔ Wholesome dietary nourishment</span>';
+    }
+
+    // Health Score Circular Gauge
+    const scoreVal = document.getElementById('scoreVal');
+    const gaugeFill = document.getElementById('gaugeFill');
+    const verdictTitle = document.getElementById('verdictTitle');
+    const verdictDesc = document.getElementById('verdictDesc');
+
+    scoreVal.textContent = score;
+
+    const circumference = 2 * Math.PI * 45; // 282.7
+    const offset = circumference - (Math.min(score, 10) / 10) * circumference;
+    gaugeFill.style.strokeDashoffset = offset;
+
+    if (score >= 8) {
+      gaugeFill.style.stroke = '#10b981';
+      verdictTitle.textContent = '🌟 Super Healthy Choice';
+      verdictTitle.style.color = '#10b981';
+      verdictDesc.textContent = 'High nutritional density, rich in essential vitamins & minerals.';
+    } else if (score >= 5) {
+      gaugeFill.style.stroke = '#f59e0b';
+      verdictTitle.textContent = '⚖️ Moderately Healthy';
+      verdictTitle.style.color = '#f59e0b';
+      verdictDesc.textContent = 'Acceptable for regular meals; enjoy in balanced portions.';
+    } else {
+      gaugeFill.style.stroke = '#f43f5e';
+      verdictTitle.textContent = '⚠️ Consume with Caution';
+      verdictTitle.style.color = '#f43f5e';
+      verdictDesc.textContent = 'High in refined sugar, saturated fat, or sodium. Restrict intake.';
+    }
+
+    // Condition Warnings (Chain of Responsibility)
+    let diabetesText = '';
+    let hypertensionText = '';
+    let obesityText = '';
+
+    warnings.forEach(w => {
+      const lower = w.toLowerCase();
+      if (lower.includes('diabetes') || lower.includes('sugar')) {
+        diabetesText = w;
+      } else if (lower.includes('hypertension') || lower.includes('sodium') || lower.includes('blood pressure')) {
+        hypertensionText = w;
+      } else if (lower.includes('obesity') || lower.includes('weight') || lower.includes('calorie')) {
+        obesityText = w;
+      }
+    });
+
+    // Diabetes card highlight
+    const diabetesBox = document.getElementById('diabetesWarningBox');
+    const diabetesTextEl = document.getElementById('diabetesWarningText');
+    if (diabetesText) {
+      diabetesTextEl.textContent = diabetesText;
+      if (diabetesText.toLowerCase().includes('avoid') || diabetesText.toLowerCase().includes('restrict') || diabetesText.toLowerCase().includes('high sugar')) {
+        diabetesBox.className = 'warning-box diabetes-alert';
+      } else {
+        diabetesBox.className = 'warning-box diabetes-safe';
+      }
+    } else {
+      const sugarVal = nutrients['sugar'] || '';
+      diabetesTextEl.textContent = sugarVal
+        ? `Contains ${sugarVal} sugar. Consume in moderation if monitoring blood glucose.`
+        : 'Safe for normal blood sugar levels in standard portion sizes.';
+      diabetesBox.className = 'warning-box diabetes-safe';
+    }
+
+    // Hypertension card
+    document.getElementById('hypertensionWarningText').textContent = hypertensionText ||
+      'No critical sodium or cardiovascular risks identified.';
+
+    // Obesity card
+    document.getElementById('obesityWarningText').textContent = obesityText ||
+      'Caloric intake is within reasonable dietary thresholds for standard portions.';
+
+    // Pattern summary trace
+    const patterns = res.pattern_summary || {};
+    document.getElementById('patternTrace').innerHTML = `
+      • <strong>Factory Method:</strong> ${patterns.factory_method || 'ImageFoodAnalyzer'}<br/>
+      • <strong>Proxy:</strong> ${patterns.proxy_cache || 'Active'}<br/>
+      • <strong>Bridge:</strong> ${patterns.bridge_formatter || 'FoodReportFormatter'}<br/>
+      • <strong>Chain of Responsibility:</strong> ${patterns.chain_of_responsibility || 'Diabetes -> Hypertension -> Obesity'}<br/>
+      • <strong>Observer & Singleton DB:</strong> ${patterns.observer || 'ScanEventManager -> SQLite DB'}
+    `;
+
+    document.getElementById('resultsGrid').style.display = 'grid';
+  }
+
+  async function loadHistory() {
+    try {
+      const res = await fetch('history');
+      const list = await res.json();
+      const container = document.getElementById('historyContent');
+
+      if (!list || list.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted);">No scan records found in the database yet. Upload a food photo to begin!</div>';
+        return;
+      }
+
+      const rows = list.map(item => {
+        const sc = parseInt(item.health_score) || 5;
+        const tagClass = sc >= 8 ? 'high' : (sc >= 5 ? 'mid' : 'low');
+        return `
+          <tr>
+            <td><strong>${escapeHtml(item.food_name)}</strong></td>
+            <td><span class="score-tag ${tagClass}">${sc} / 10</span></td>
+            <td style="color:var(--text-muted); font-size:0.82rem;">${escapeHtml(item.scanned_at || 'Just now')}</td>
+          </tr>
+        `;
+      }).join('');
+
+      container.innerHTML = `
+        <table class="history-table">
+          <thead>
+            <tr>
+              <th>Food Item</th>
+              <th>Health Score</th>
+              <th>Database Timestamp</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    } catch (e) {
+      console.warn('History load error:', e);
+    }
+  }
+
+  function setLoading(loading) {
+    const btn = document.getElementById('scanBtn');
+    const spinner = document.getElementById('scanSpinner');
+    const icon = document.getElementById('scanBtnIcon');
+    const text = document.getElementById('scanBtnText');
+
+    btn.disabled = loading;
+    spinner.style.display = loading ? 'inline-block' : 'none';
+    icon.style.display = loading ? 'none' : 'inline-block';
+    text.textContent = loading ? 'Analyzing Food Image with Gemini AI...' : 'Scan & Analyze This Food Image';
+  }
+
+  function showStatus(msg, type) {
+    const el = document.getElementById('statusMsg');
+    el.textContent = msg;
+    el.className = 'status-msg ' + type;
+  }
+
+  function clearStatus() {
+    const el = document.getElementById('statusMsg');
+    el.className = 'status-msg';
+    el.style.display = 'none';
+  }
+
+  function escapeHtml(str) {
+    return String(str || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // Load database history on start
+  loadHistory();
+</script>
+
+</body>
+</html>

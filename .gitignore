@@ -1,0 +1,8 @@
+target/
+*.class
+foodscanner.db
+foodscanner.db-journal
+.idea/
+*.iml
+.vscode/
+*.log
