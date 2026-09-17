@@ -4,6 +4,7 @@ import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 import org.json.*;
 
@@ -23,11 +24,53 @@ public class GeminiApiProxy {
     private final String apiKey;
 
     public GeminiApiProxy() {
-        String key = System.getenv("GEMINI_API_KEY");
-        this.apiKey = (key != null) ? key.trim() : "";
+        this.apiKey = resolveApiKey();
         if (this.apiKey.isBlank()) {
-            System.out.println("[FoodScan Proxy] GEMINI_API_KEY not configured. Running in Demo/Simulation Mode.");
+            System.err.println("[FoodScan Proxy] WARNING: No GEMINI_API_KEY detected in config.properties, .env, or system environment.");
+        } else {
+            System.out.println("[FoodScan Proxy] GEMINI_API_KEY loaded successfully from configuration.");
         }
+    }
+
+    private String resolveApiKey() {
+        // 1. System property
+        String key = System.getProperty("GEMINI_API_KEY");
+        if (key != null && !key.isBlank()) return key.trim();
+
+        // 2. System environment variable
+        key = System.getenv("GEMINI_API_KEY");
+        if (key != null && !key.isBlank()) return key.trim();
+
+        // 3. config.properties in project root
+        File configFile = new File("config.properties");
+        if (configFile.exists()) {
+            try (InputStream is = new FileInputStream(configFile)) {
+                Properties props = new Properties();
+                props.load(is);
+                key = props.getProperty("GEMINI_API_KEY");
+                if (key != null && !key.isBlank()) return key.trim();
+            } catch (Exception ignored) {}
+        }
+
+        // 4. .env in project root
+        File envFile = new File(".env");
+        if (envFile.exists()) {
+            try (BufferedReader reader = new BufferedReader(new FileReader(envFile))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    line = line.trim();
+                    if (line.startsWith("GEMINI_API_KEY=")) {
+                        key = line.substring("GEMINI_API_KEY=".length()).trim();
+                        if ((key.startsWith("\"") && key.endsWith("\"")) || (key.startsWith("'") && key.endsWith("'"))) {
+                            key = key.substring(1, key.length() - 1);
+                        }
+                        if (!key.isBlank()) return key.trim();
+                    }
+                }
+            } catch (Exception ignored) {}
+        }
+
+        return "";
     }
 
     public boolean isConfigured() {
@@ -38,13 +81,13 @@ public class GeminiApiProxy {
      * Text-only call with proxy caching.
      */
     public String callGemini(String prompt) throws IOException {
+        if (!isConfigured()) {
+            throw new IllegalStateException("GEMINI_API_KEY is not configured! Please save your API key in config.properties (GEMINI_API_KEY=your_key) or set the GEMINI_API_KEY environment variable.");
+        }
+
         String cacheKey = "text:" + hashString(prompt.strip().toLowerCase());
         if (cache.containsKey(cacheKey)) {
             return cache.get(cacheKey);
-        }
-
-        if (!isConfigured()) {
-            return generateMockResponse(prompt);
         }
 
         JSONObject body = buildTextPayload(prompt);
@@ -57,6 +100,10 @@ public class GeminiApiProxy {
      * Multimodal Image + Prompt call with proxy caching.
      */
     public String callGeminiWithImage(String prompt, String mimeType, String base64Data) throws IOException {
+        if (!isConfigured()) {
+            throw new IllegalStateException("GEMINI_API_KEY is not configured! Please save your API key in config.properties (GEMINI_API_KEY=your_key) or set the GEMINI_API_KEY environment variable.");
+        }
+
         String effectiveMime = (mimeType != null && !mimeType.isBlank()) ? mimeType : "image/jpeg";
         String rawBase64 = stripBase64Header(base64Data);
 
@@ -65,118 +112,10 @@ public class GeminiApiProxy {
             return cache.get(cacheKey);
         }
 
-        if (!isConfigured()) {
-            return generateMockResponse(prompt);
-        }
-
         JSONObject body = buildMultimodalPayload(prompt, effectiveMime, rawBase64);
         String result = executePostWithFallback(body);
         cache.put(cacheKey, result);
         return result;
-    }
-
-    private String generateMockResponse(String prompt) {
-        String lower = (prompt != null) ? prompt.toLowerCase() : "";
-        if (lower.contains("pizza") || lower.contains("burger") || lower.contains("fry") || lower.contains("fast food")) {
-            return """
-                {
-                  "food_name": "Cheese Burger & French Fries (Demo Mode)",
-                  "category": "Fast Food",
-                  "serving_size": "1 serving (320g)",
-                  "nutrients": {
-                    "calories": "750 kcal",
-                    "protein": "28g",
-                    "carbohydrates": "68g",
-                    "fat": "38g",
-                    "fiber": "4g",
-                    "sugar": "12g",
-                    "sodium": "1420mg",
-                    "potassium": "410mg",
-                    "calcium": "180mg",
-                    "iron": "4.5mg",
-                    "vitamin_c": "6mg"
-                  },
-                  "health_score": 4,
-                  "health_benefits": [
-                    "Provides quick dietary energy and substantial protein",
-                    "Contains iron and calcium from dairy and meat components"
-                  ],
-                  "health_warnings": {
-                    "diabetes": "Moderate glycemic load. Monitor portion size to avoid postprandial glucose spikes.",
-                    "hypertension": "High sodium warning (1420mg)! Exceeds 60% of daily recommended intake.",
-                    "obesity": "High caloric density and saturated fat content; limit consumption during weight loss.",
-                    "general": "Deep-fried fast food items contain trans-fats; consume infrequently."
-                  },
-                  "recommendation": "High calorie and high sodium fast food option. Consume sparingly and balance with fresh fruits or greens."
-                }
-                """;
-        } else if (lower.contains("donut") || lower.contains("cake") || lower.contains("sweet") || lower.contains("soda") || lower.contains("dessert")) {
-            return """
-                {
-                  "food_name": "Chocolate Glazed Donut (Demo Mode)",
-                  "category": "Dessert",
-                  "serving_size": "1 piece (85g)",
-                  "nutrients": {
-                    "calories": "360 kcal",
-                    "protein": "4g",
-                    "carbohydrates": "46g",
-                    "fat": "18g",
-                    "fiber": "1.5g",
-                    "sugar": "29g",
-                    "sodium": "260mg",
-                    "potassium": "110mg",
-                    "calcium": "45mg",
-                    "iron": "1.8mg",
-                    "vitamin_c": "0mg"
-                  },
-                  "health_score": 3,
-                  "health_benefits": [
-                    "Rapid carbohydrate replenishment for immediate energy"
-                  ],
-                  "health_warnings": {
-                    "diabetes": "High sugar content (29g)! Persons with diabetes must AVOID or strictly limit this item.",
-                    "hypertension": "Moderate sodium, but high saturated fat may adversely affect cardiovascular profile.",
-                    "obesity": "Empty calories with negligible satiety index; promotes fat storage.",
-                    "general": "Refined flour and simple sugars trigger swift insulin surges."
-                  },
-                  "recommendation": "High sugar and refined carbohydrate dessert. Avoid for diabetes management and weight control."
-                }
-                """;
-        } else {
-            return """
-                {
-                  "food_name": "Mediterranean Quinoa Bowl (Demo Mode)",
-                  "category": "Protein/Vegetable",
-                  "serving_size": "1 bowl (350g)",
-                  "nutrients": {
-                    "calories": "380 kcal",
-                    "protein": "26g",
-                    "carbohydrates": "42g",
-                    "fat": "11g",
-                    "fiber": "8g",
-                    "sugar": "5g",
-                    "sodium": "340mg",
-                    "potassium": "680mg",
-                    "calcium": "95mg",
-                    "iron": "3.8mg",
-                    "vitamin_c": "28mg"
-                  },
-                  "health_score": 9,
-                  "health_benefits": [
-                    "Rich in complete plant protein and dietary fiber supporting metabolic health",
-                    "High potassium and antioxidants promote cardiovascular wellness",
-                    "Low glycemic index provides steady, sustained energy release"
-                  ],
-                  "health_warnings": {
-                    "diabetes": "Low sugar content (5g). Safe in moderation with excellent complex carbohydrates.",
-                    "hypertension": "Low sodium content (340mg). Heart-friendly and aligned with DASH diet.",
-                    "obesity": "High satiety index with low caloric density; ideal for weight management.",
-                    "general": "Wholesome natural ingredients with zero artificial additives."
-                  },
-                  "recommendation": "Nutritionally balanced meal with optimal macronutrient profile. Highly recommended for daily wellness and blood sugar regulation."
-                }
-                """;
-        }
     }
 
     private JSONObject buildTextPayload(String prompt) {

@@ -6,3 +6,5 @@ foodscanner.db-journal
 *.iml
 .vscode/
 *.log
+.env
+config.properties
